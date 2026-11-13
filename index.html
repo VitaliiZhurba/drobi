@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Спільний знаменник</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@600;700&family=Caveat:wght@700&display=swap">
+<style>
+/* Layout: a notebook sheet "в клітинку" with the red margin line as the work surface; steps, score and history sit in a side column that drops below on phones. */
+:root {
+  --bg: #e9eef5;
+  --surface: #ffffff;
+  --paper: #fdfeff;
+  --grid: #dbe5f1;
+  --line: #c9d4e3;
+  --fg: #1b2230;
+  --muted: #5a6578;
+  --ink: #2346a8;
+  --ink-soft: #e4ebfb;
+  --red: #cf3434;
+  --ok: #1d8049;
+  --ok-soft: #e1f3e8;
+  --bad-soft: #fde7e7;
+  --warn: #a8650c;
+  --warn-soft: #fcf0d9;
+  --font-display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --font-body: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-hand: "Caveat", "Segoe Print", "Comic Sans MS", cursive;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e131b; --surface: #161d29; --paper: #131a25; --grid: #1f2a3b; --line: #2a3649;
+    --fg: #e5eaf2; --muted: #96a2b6; --ink: #8db0ff; --ink-soft: #1d2b4a; --red: #ff6f6f;
+    --ok: #52c98b; --ok-soft: #15301f; --bad-soft: #3a1a1c; --warn: #e3b25a; --warn-soft: #36290f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e131b; --surface: #161d29; --paper: #131a25; --grid: #1f2a3b; --line: #2a3649;
+  --fg: #e5eaf2; --muted: #96a2b6; --ink: #8db0ff; --ink-soft: #1d2b4a; --red: #ff6f6f;
+  --ok: #52c98b; --ok-soft: #15301f; --bad-soft: #3a1a1c; --warn: #e3b25a; --warn-soft: #36290f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; margin-bottom: 18px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 4vw, 30px); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h1 .slash { color: var(--red); }
+header.top p { margin: 0; color: var(--muted); max-width: 52ch; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* toolbar */
+.toolbar { display: flex; flex-wrap: wrap; gap: 14px 22px; margin-bottom: 14px; }
+.group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.group > .lbl { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.group.off { opacity: .45; pointer-events: none; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { font: inherit; font-size: 14px; font-weight: 500; border: 0; background: transparent; color: var(--fg); padding: 6px 12px; border-radius: 7px; cursor: pointer; min-height: 34px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.seg button:not([aria-pressed="true"]):hover { background: var(--ink-soft); }
+.seg button.sym { font-size: 18px; min-width: 42px; padding: 4px 10px; }
+select { font: inherit; font-size: 14px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; min-height: 40px; max-width: 100%; }
+
+/* custom form */
+.custom { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; }
+.custom .lbl { font-weight: 600; }
+.cf { display: inline-flex; align-items: center; gap: 10px; font-size: 22px; }
+.cf .mini { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
+.cf .mini span { display: block; width: 100%; height: 2px; background: var(--fg); }
+.cf input { width: 3.4em; font: inherit; font-size: 18px; text-align: center; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); padding: 2px 4px; }
+.cf .cw { width: 3.2em; font-size: 16px; }
+.cf .cw::placeholder { color: var(--muted); font-size: 12px; }
+.wn { padding-right: .08em; }
+.cf select { font-size: 18px; min-height: 36px; padding: 2px 6px; }
+.custom .err { color: var(--red); font-size: 14px; flex-basis: 100%; margin: 0; }
+.custom .err:empty { display: none; }
+
+/* the sheet */
+.sheet {
+  position: relative; border-radius: 14px; border: 1px solid var(--line);
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 22px 22px; background-position: -1px -1px;
+  padding: 22px 22px 22px 64px; overflow: hidden;
+}
+.sheet::before { content: ""; position: absolute; top: 0; bottom: 0; left: 44px; width: 2px; background: var(--red); opacity: .55; }
+@media (max-width: 560px) {
+  .sheet { padding: 18px 14px 18px 34px; }
+  .sheet::before { left: 20px; }
+}
+.task-head { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin-bottom: 14px; }
+.task-no { font-family: var(--font-display); font-weight: 600; font-size: 15px; }
+.task-src { font-size: 13px; color: var(--muted); }
+.lcd-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 19px; margin-bottom: 22px; }
+.lcd-row .t { color: var(--muted); font-size: 15px; }
+.lcd-row b { font-weight: 600; }
+
+.expr { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 6px; font-size: clamp(24px, 5.4vw, 36px); font-variant-numeric: tabular-nums; min-height: 3.6em; }
+.chunk { display: inline-flex; align-items: center; gap: .18em; }
+.op, .eq { padding: 0 .12em; color: var(--fg); }
+.eq { padding: 0 .2em; }
+.frac { --mh: 1em; display: inline-flex; flex-direction: column; align-items: center; padding-bottom: var(--mh); }
+.frac .mult { height: var(--mh); align-self: flex-end; display: flex; align-items: flex-end; font-size: .55em; margin-right: -.9em; padding-bottom: .1em; }
+.corner { display: inline-flex; align-items: flex-end; border-left: 2px solid var(--ink); border-bottom: 2px solid var(--ink); padding: 0 .15em 0 .2em; transform: skewX(-12deg); }
+.corner .cell { transform: skewX(12deg); border-bottom: 0; }
+.frac .n, .frac .d { display: inline-flex; align-items: center; gap: .15em; padding: 0 .2em; line-height: 1.15; }
+.frac .bar { align-self: stretch; height: 2px; background: var(--fg); margin: .1em 0; border-radius: 1px; }
+.mirror { color: var(--ink); min-width: 1ch; text-align: center; }
+.mirror.empty { color: var(--muted); opacity: .6; }
+
+.cell {
+  font: inherit; color: var(--ink); text-align: center; background: transparent;
+  width: calc(var(--w, 2) * .62em + .45em); padding: 0 .05em; line-height: 1.15;
+  border: 0; border-bottom: 2px dashed var(--ink); border-radius: 4px 4px 0 0;
+  transition: background-color .15s, border-color .15s;
+}
+.cell:focus { outline: 2px solid var(--ink); outline-offset: 2px; background: var(--ink-soft); }
+.cell::placeholder { color: var(--muted); opacity: .5; }
+.cell.whole { margin-right: .05em; margin-bottom: .45em; }
+.cell.ok { color: var(--ok); border-bottom: 2px solid var(--ok); background: var(--ok-soft); }
+.cell.bad { color: var(--red); border-bottom: 2px solid var(--red); background: var(--bad-soft); }
+.cell.warn { color: var(--warn); border-bottom: 2px solid var(--warn); background: var(--warn-soft); }
+.cell.given { color: var(--muted); border-bottom: 2px solid transparent; background: transparent; }
+.lcd-row .cell { font-size: 22px; }
+
+.feedback { margin-top: 18px; min-height: 1.5em; font-size: 15px; max-width: 70ch; }
+.feedback ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+.feedback .note { margin: 0; }
+.feedback .hint { background: var(--ink-soft); border-radius: 10px; padding: 10px 14px; margin: 0; }
+.feedback .hint b { color: var(--ink); }
+.feedback .good { color: var(--ok); font-weight: 600; margin: 0 0 4px; }
+.feedback .sol { margin: 0; font-variant-numeric: tabular-nums; }
+.feedback .bad-t { color: var(--red); }
+.feedback .warn-t, .feedback .warn { color: var(--warn); margin: 0; }
+.feedback .bad { color: var(--red); margin: 0; }
+.log { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.log li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; font-variant-numeric: tabular-nums; }
+.log li::before { content: "✓"; color: var(--ok); font-weight: 700; }
+.log li.skip::before { content: "–"; color: var(--muted); }
+.log b { color: var(--ok); font-weight: 600; }
+.ask { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; padding: 12px 14px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--surface); max-width: 70ch; }
+.ask p { margin: 0; font-weight: 600; flex-basis: 100%; }
+.ask .btn { min-width: 76px; }
+.part { display: inline-flex; align-items: center; gap: 6px; }
+.appear { animation: appear .35s ease-out; }
+@keyframes appear { from { opacity: .2; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.btn { font: inherit; font-size: 15px; font-weight: 600; border-radius: 10px; padding: 9px 16px; min-height: 42px; cursor: pointer; border: 1.5px solid var(--ink); background: var(--surface); color: var(--ink); }
+.btn:hover { background: var(--ink-soft); }
+.btn.primary { background: var(--ink); color: var(--surface); }
+.btn.primary:hover { filter: brightness(1.08); background: var(--ink); }
+.btn.quiet { border-color: var(--line); color: var(--fg); }
+.btn:focus-visible, .seg button:focus-visible, select:focus-visible, .cf input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.btn[disabled] { opacity: .45; cursor: default; }
+
+.stamp {
+  position: absolute; top: 14px; right: 16px; transform: rotate(-8deg);
+  font-family: var(--font-hand); color: var(--red); text-align: center; line-height: .95;
+  border: 3px solid var(--red); border-radius: 50%; width: 112px; height: 112px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; background: color-mix(in srgb, var(--paper) 85%, transparent);
+  animation: stampIn .35s cubic-bezier(.2,1.6,.4,1);
+}
+.stamp .g { font-size: 46px; }
+.stamp .w { font-size: 20px; }
+@keyframes stampIn { from { transform: rotate(-8deg) scale(1.6); opacity: 0; } to { transform: rotate(-8deg) scale(1); opacity: 1; } }
+@media (max-width: 560px) { .stamp { width: 84px; height: 84px; top: 8px; right: 8px; } .stamp .g { font-size: 34px; } .stamp .w { font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .stamp, .appear { animation: none; } .cell { transition: none; } }
+
+/* side column */
+aside { display: grid; gap: 14px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.panel h2 { font-family: var(--font-display); font-size: 14px; font-weight: 600; margin: 0 0 12px; letter-spacing: .01em; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: st; }
+.steps li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; counter-increment: st; }
+.steps .dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 13px; font-weight: 700; color: var(--muted); }
+.steps .dot::before { content: counter(st); }
+.steps li.current .dot { border-color: var(--ink); color: var(--ink); }
+.steps li.ok .dot { border-color: var(--ok); background: var(--ok); color: var(--surface); }
+.steps li.ok .dot::before { content: "✓"; }
+.steps li.bad .dot { border-color: var(--red); background: var(--red); color: var(--surface); }
+.steps li.bad .dot::before { content: "!"; }
+.steps li.warn .dot { border-color: var(--warn); color: var(--warn); }
+.steps li.given .dot { border-style: dashed; border-color: var(--ok); color: var(--ok); }
+.steps .st-t { font-weight: 600; font-size: 14px; line-height: 1.3; }
+.steps .st-d { font-size: 13px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+.steps li.given .st-t::after { content: " · дано"; font-weight: 400; color: var(--ok); }
+.steps li.skip .dot { border-style: dashed; border-color: var(--ok); color: var(--ok); }
+.steps li.skip .st-t::after { content: " · не потрібно"; font-weight: 400; color: var(--ok); }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; text-align: center; }
+.stats .v { font-family: var(--font-display); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stats .k { font-size: 12px; color: var(--muted); line-height: 1.25; }
+.hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.hist li { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; font-variant-numeric: tabular-nums; border-bottom: 1px dashed var(--line); padding-bottom: 5px; }
+.hist .hg { font-family: var(--font-hand); font-size: 20px; color: var(--red); line-height: 1; }
+.hist .hg.none { font-family: var(--font-body); font-size: 12px; color: var(--muted); }
+.hist-empty { font-size: 13px; color: var(--muted); margin: 0; }
+.panel .foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+.linkbtn { font: inherit; font-size: 13px; background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 4px; }
+.linkbtn.armed { color: var(--red); }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Спільний знаменник<span class="slash">.</span></h1>
+    <p>Додавання й віднімання дробів і мішаних чисел з різними знаменниками: знайди спільний знаменник і додаткові множники, виділи цілу частину і скороти відповідь.</p>
+  </header>
+
+  <main class="layout">
+    <section>
+      <div class="toolbar">
+        <div class="group">
+          <span class="lbl">Приклад</span>
+          <div class="seg" data-group="source">
+            <button type="button" data-val="random">Випадковий</button>
+            <button type="button" data-val="custom">Свій</button>
+          </div>
+        </div>
+        <div class="group" id="g-kind">
+          <label class="lbl" for="kind">Числа</label>
+          <select id="kind">
+            <option value="frac">Звичайні дроби</option>
+            <option value="mixed">Мішані числа</option>
+            <option value="borrow">Мішані з позичанням (−)</option>
+          </select>
+        </div>
+        <div class="group" id="g-op">
+          <span class="lbl">Дія</span>
+          <div class="seg" data-group="op">
+            <button type="button" class="sym" data-val="+" aria-label="Додавання">+</button>
+            <button type="button" class="sym" data-val="-" aria-label="Віднімання">−</button>
+            <button type="button" class="sym" data-val="mix" aria-label="Навмання">±</button>
+          </div>
+        </div>
+        <div class="group" id="g-level">
+          <label class="lbl" for="level">Знаменники</label>
+          <select id="level">
+            <option value="divides">Один ділиться на інший (3 і 6)</option>
+            <option value="coprime">Взаємно прості (4 і 5)</option>
+            <option value="common">Мають спільний дільник (4 і 6)</option>
+            <option value="mixed">Усі види навмання</option>
+          </select>
+        </div>
+        <div class="group">
+          <span class="lbl">Учень заповнює</span>
+          <div class="seg" data-group="mode">
+            <button type="button" data-val="full">Усі кроки</button>
+            <button type="button" data-val="given">Знаменник і множники дано</button>
+          </div>
+        </div>
+      </div>
+
+      <form class="custom" id="customForm" hidden novalidate>
+        <span class="lbl">Свій приклад:</span>
+        <div class="cf">
+          <input id="cw1" class="cw" inputmode="numeric" aria-label="Ціла частина першого числа (необов'язково)" placeholder="ціла" autocomplete="off">
+          <span class="mini"><input id="ca" inputmode="numeric" aria-label="Чисельник першого дробу" autocomplete="off"><span></span><input id="cb" inputmode="numeric" aria-label="Знаменник першого дробу" autocomplete="off"></span>
+          <select id="cop" aria-label="Дія"><option value="+">+</option><option value="-">−</option></select>
+          <input id="cw2" class="cw" inputmode="numeric" aria-label="Ціла частина другого числа (необов'язково)" placeholder="ціла" autocomplete="off">
+          <span class="mini"><input id="cc" inputmode="numeric" aria-label="Чисельник другого дробу" autocomplete="off"><span></span><input id="cd" inputmode="numeric" aria-label="Знаменник другого дробу" autocomplete="off"></span>
+        </div>
+        <button class="btn primary" type="submit">Розв'язувати</button>
+        <p class="err" id="cerr" role="alert"></p>
+      </form>
+
+      <div class="sheet" id="sheet">
+        <div class="task-head">
+          <span class="task-no" id="taskNo">Приклад 1</span>
+          <span class="task-src" id="taskSrc">Розв'язуй крок за кроком</span>
+        </div>
+        <div class="lcd-row" id="lcdRow" hidden>
+          <span class="t">Спільний знаменник:</span>
+          <input id="f-lcd" class="cell" inputmode="numeric" autocomplete="off" aria-label="Спільний знаменник">
+        </div>
+        <div class="expr" id="expr"></div>
+        <div class="feedback" id="feedback" aria-live="polite"></div>
+        <div class="ask" id="ask" hidden>
+          <p id="askText"></p>
+          <button class="btn" type="button" data-ans="yes">Так</button>
+          <button class="btn" type="button" data-ans="no">Ні</button>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="btnCheck" type="button">Перевірити</button>
+          <button class="btn" id="btnHint" type="button">Підказка</button>
+          <button class="btn quiet" id="btnShow" type="button">Показати розв'язок</button>
+          <button class="btn quiet" id="btnNext" type="button">Наступний приклад →</button>
+        </div>
+        <div class="stamp" id="stamp" hidden><span class="g" id="stampG">12</span><span class="w" id="stampW">балів</span></div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="panel">
+        <h2>Як розв'язувати</h2>
+        <ol class="steps" id="steps">
+          <li data-step="1"><span class="dot"></span><div><div class="st-t">Спільний знаменник</div><div class="st-d">Число, яке ділиться на обидва знаменники. Найзручніше взяти найменше з таких.</div></div></li>
+          <li data-step="2"><span class="dot"></span><div><div class="st-t">Додаткові множники</div><div class="st-d">Спільний знаменник поділи на знаменник кожного дробу. Пиши в куточку над дробом.</div></div></li>
+          <li data-step="3"><span class="dot"></span><div><div class="st-t">Нові чисельники</div><div class="st-d">Чисельник кожного дробу помнож на його додатковий множник.</div></div></li>
+          <li data-step="4"><span class="dot"></span><div><div class="st-t">Позич одиницю</div><div class="st-d">Лише для віднімання мішаних чисел: якщо перший чисельник менший, візьми 1 з цілої частини і запиши її як дріб зі спільним знаменником.</div></div></li>
+          <li data-step="5"><span class="dot"></span><div><div class="st-t">Додай або відніми</div><div class="st-d">Окремо цілі частини, окремо чисельники. Знаменник залишається спільним.</div></div></li>
+          <li data-step="6"><span class="dot"></span><div><div class="st-t">Виділи цілу частину</div><div class="st-d">Спершу вирішуй, чи це потрібно. Якщо чисельник не менший за знаменник — поділи з остачею, знаменник не змінюється.</div></div></li>
+          <li data-step="7"><span class="dot"></span><div><div class="st-t">Скороти</div><div class="st-d">Вирішуй, чи дріб скорочується. Якщо так — поділи чисельник і знаменник на спільний дільник, цілу частину перепиши.</div></div></li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h2>Мій рахунок</h2>
+        <div class="stats">
+          <div><div class="v" id="sSolved">0</div><div class="k">розв'язано</div></div>
+          <div><div class="v" id="sFirst">0</div><div class="k">без помилок і підказок</div></div>
+          <div><div class="v" id="sStreak">0</div><div class="k">поспіль без помилок</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Розв'язані приклади</h2>
+        <ul class="hist" id="hist"></ul>
+        <p class="hist-empty" id="histEmpty">Тут з'являться приклади з оцінками.</p>
+        <div class="foot"><button class="linkbtn" id="btnReset" type="button">Очистити рахунок</button></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(function () {
+  var KEY = "spilnyi-znamennyk-v1";
+  var $ = function (id) { return document.getElementById(id); };
+  var MINUS = "−";
+
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = b; b = a % b; a = t; } return a; }
+  function lcm(a, b) { return a / gcd(a, b) * b; }
+  function rnd(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
+
+  function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ settings: settings, stats: stats, history: history })); } catch (e) {} }
+
+  var saved = load();
+  var settings = Object.assign({ source: "random", op: "+", level: "mixed", mode: "full", kind: "frac" }, saved.settings || {});
+  var stats = Object.assign({ solved: 0, first: 0, streak: 0 }, saved.stats || {});
+  var history = Array.isArray(saved.history) ? saved.history : [];
+
+  /* ---------- generation ---------- */
+  function genPair(level) {
+    if (level === "mixed") level = ["divides", "coprime", "common"][rnd(0, 2)];
+    var b, d, i;
+    for (i = 0; i < 500; i++) {
+      if (level === "divides") {
+        b = rnd(2, 9); var m = rnd(2, b <= 4 ? 5 : 3); d = b * m;
+        if (d > 30) continue;
+        if (Math.random() < .5) { var t = b; b = d; d = t; }
+        return [b, d];
+      }
+      if (level === "coprime") {
+        b = rnd(2, 10); d = rnd(2, 10);
+        if (b !== d && gcd(b, d) === 1) return [b, d];
+        continue;
+      }
+      b = rnd(4, 16); d = rnd(4, 16);
+      if (b !== d && gcd(b, d) > 1 && b % d && d % b && lcm(b, d) <= 72) return [b, d];
+    }
+    return [4, 6];
+  }
+  function genNum(den) { for (var i = 0; i < 100; i++) { var n = rnd(1, den - 1); if (gcd(n, den) === 1) return n; } return 1; }
+  function generate() {
+    var kind = settings.kind;
+    var op = kind === "borrow" ? "-" : settings.op === "mix" ? (Math.random() < .5 ? "+" : "-") : settings.op;
+    for (var i = 0; i < 200; i++) {
+      var p = genPair(settings.level), b = p[0], d = p[1], a = genNum(b), c = genNum(d), W1 = 0, W2 = 0, t1, t2;
+      if (kind === "frac") {
+        if (op === "-") {
+          if (a * d === c * b) continue;
+          if (a * d < c * b) { t1 = a; t2 = b; a = c; b = d; c = t1; d = t2; }
+        }
+      } else {
+        W1 = rnd(1, 6); W2 = rnd(1, 5);
+        if (op === "-") {
+          if (kind === "borrow") {
+            if (a * d === c * b) continue;
+            if (a * d > c * b) { t1 = a; t2 = b; a = c; b = d; c = t1; d = t2; }
+            if (W1 <= W2) W1 = W2 + rnd(1, 3);
+          } else {
+            if (W1 < W2) { t1 = W1; W1 = W2; W2 = t1; }
+            if (W1 === W2) W1++;
+          }
+        }
+      }
+      return { W1: W1, a: a, b: b, W2: W2, c: c, d: d, op: op };
+    }
+    return { W1: 0, a: 3, b: 4, W2: 0, c: 5, d: 6, op: "+" };
+  }
+
+  function calc(T, D) {
+    var k1 = D / T.b, k2 = D / T.d, n1 = T.a * k1, n2 = T.c * k2, isMixed = T.W1 > 0 || T.W2 > 0;
+    var borrow = T.op === "-" && isMixed && n1 < n2;
+    var B1 = borrow ? T.W1 - 1 : T.W1, m1 = borrow ? n1 + D : n1;
+    var Wres = T.op === "+" ? B1 + T.W2 : B1 - T.W2;
+    var s = T.op === "+" ? m1 + n2 : m1 - n2;
+    var tot = Wres * D + s, W = Math.floor(tot / D), r = tot % D, g = r === 0 ? D : gcd(r, D);
+    return { D: D, k1: k1, k2: k2, n1: n1, n2: n2, mixed: isMixed, borrow: borrow, B1: B1, m1: m1, Wres: Wres, s: s, tot: tot, W: W, r: r, g: g, fp: r / g, fq: D / g };
+  }
+
+  /* ---------- formatting ---------- */
+  function opSym(op) { return op === "+" ? "+" : MINUS; }
+  function mixed(W, p, q) { return p === 0 ? String(W) : (W ? W + " " : "") + p + "/" + q; }
+  function mx(W, n, q) { return (W ? W + " " : "") + n + "/" + q; }
+  function fmtAns(C) { return mixed(C.W, C.fp, C.fq); }
+  function exprText(T) { return mx(T.W1, T.a, T.b) + " " + opSym(T.op) + " " + mx(T.W2, T.c, T.d); }
+  function solutionText(T, C) {
+    var o = opSym(T.op), D = C.D, chain = [];
+    var txt = T.b === T.d ? "Знаменники однакові. " : "Спільний знаменник " + D + ". Додаткові множники: " + D + " : " + T.b + " = " + C.k1 + ", " + D + " : " + T.d + " = " + C.k2 + ". ";
+    if (C.mixed) {
+      if (T.b !== T.d) chain.push(mx(T.W1, C.n1, D) + " " + o + " " + mx(T.W2, C.n2, D));
+      if (C.borrow) chain.push(mx(C.B1, C.m1, D) + " " + o + " " + mx(T.W2, C.n2, D));
+      chain.push(C.s === 0 ? String(C.Wres) : mx(C.Wres, C.s, D));
+    } else {
+      chain.push(T.b === T.d ? "(" + T.a + " " + o + " " + T.c + ")/" + D : "(" + T.a + "·" + C.k1 + " " + o + " " + T.c + "·" + C.k2 + ")/" + D);
+      chain.push(C.s + "/" + D);
+      if (C.s === 0) chain.push("0");
+    }
+    if (C.s >= D) chain.push(mixed(C.W, C.r, D));
+    if (C.r && C.g > 1) chain.push(mixed(C.W, C.fp, C.fq));
+    return txt + exprText(T) + " = " + chain.join(" = ") + ".";
+  }
+  function balWord(n) { var m10 = n % 10, m100 = n % 100; if (m10 === 1 && m100 !== 11) return "бал"; if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "бали"; return "балів"; }
+  var PRAISE = ["Добре!", "Правильно!", "Чудово!", "Так тримати!", "Молодець!"];
+  function praise() { return PRAISE[rnd(0, PRAISE.length - 1)]; }
+
+  /* ---------- state ---------- */
+  var task = null, D = null, C = null, stage = "", attempt = null, stepState = [], log = [], msg = null, taskCount = 0;
+  var STAGE_STEP = { "q-same": 0, lcd: 0, "q-k": 1, mult: 1, nums: 2, "q-borrow": 3, borrow: 3, sum: 4, "q-whole": 5, mid: 5, "q-reduce": 6, fin: 6 };
+  var STAGE_CELLS = { lcd: ["lcd"], mult: ["k1", "k2"], nums: ["n1", "n2"], borrow: ["bw", "bm"], sum: ["sw", "s"], mid: ["w1", "r1"], fin: ["w", "p", "q"] };
+  var ALL = ["lcd", "k1", "k2", "n1", "n2", "bw", "bm", "sw", "s", "w1", "r1", "w", "p", "q"];
+
+  /* ---------- building ---------- */
+  function cell(id, w, label, extra) {
+    return '<input id="f-' + id + '" class="cell' + (extra ? " " + extra : "") + '" inputmode="numeric" autocomplete="off" aria-label="' + label + '" style="--w:' + w + '">';
+  }
+  function frac(o) {
+    return '<span class="frac"><span class="mult">' + (o.mult || "") +
+      '</span><span class="n">' + o.num + '</span><span class="bar"></span><span class="d">' + o.den + "</span></span>";
+  }
+  function corner(id, w, label) { return '<span class="corner" id="c-' + id + '" hidden>' + cell(id, w, label) + "</span>"; }
+  function part(id, html) { return '<span class="part" id="' + id + '" hidden><span class="eq">=</span><span class="chunk">' + html + "</span></span>"; }
+  function wn(W) { return W ? '<span class="wn">' + W + "</span>" : ""; }
+  function w(n) { return Math.max(2, String(n).length + 1); }
+
+  function build() {
+    var T = task, o = opSym(T.op), op = '<span class="op">' + o + "</span>", mirror = '<span class="mirror">?</span>';
+    var big = T.b * T.d, kw = w(Math.max(T.b, T.d)), nw = w(big), sw = w(2 * big), isMixed = T.W1 > 0 || T.W2 > 0;
+    var p3 = isMixed
+      ? wn(T.W1) + frac({ num: cell("n1", sw, "Новий чисельник першого числа"), den: mirror }) + op + wn(T.W2) + frac({ num: cell("n2", sw, "Новий чисельник другого числа"), den: mirror })
+      : frac({ num: cell("n1", sw, "Новий чисельник першого дробу") + op + cell("n2", sw, "Новий чисельник другого дробу"), den: mirror });
+    $("expr").innerHTML =
+      '<span class="chunk">' + wn(T.W1) +
+        frac({ mult: corner("k1", kw, "Додатковий множник першого дробу"), num: T.a, den: T.b }) + op + wn(T.W2) +
+        frac({ mult: corner("k2", kw, "Додатковий множник другого дробу"), num: T.c, den: T.d }) +
+      "</span>" +
+      part("p3", p3) +
+      part("pB", cell("bw", 2, "Ціла частина після позичання", "whole") + frac({ num: cell("bm", sw, "Чисельник після позичання"), den: mirror }) + op + wn(T.W2) + frac({ num: '<span id="pb-n2"></span>', den: mirror })) +
+      part("p4", cell("sw", 2, "Ціла частина після дії", "whole") + frac({ num: cell("s", sw, "Чисельник після дії"), den: mirror })) +
+      part("p5", cell("w1", 2, "Ціла частина", "whole") + frac({ num: cell("r1", nw, "Чисельник після виділення цілої частини"), den: mirror })) +
+      part("p6", cell("w", 2, "Ціла частина відповіді", "whole") + frac({ num: cell("p", nw, "Чисельник скороченого дробу"), den: cell("q", nw, "Знаменник скороченого дробу") }));
+    $("f-sw").hidden = !isMixed;
+    var lcd = $("f-lcd");
+    lcd.value = ""; lcd.readOnly = false; lcd.className = "cell"; lcd.tabIndex = 0;
+    lcd.style.setProperty("--w", nw);
+    $("lcdRow").hidden = true;
+    allCells().forEach(function (el) {
+      if (el.id !== "f-lcd") { el.addEventListener("input", onCellInput); el.addEventListener("keydown", onKey); }
+    });
+  }
+  function onKey(e) { if (e.key === "Enter") { e.preventDefault(); checkStage(); } }
+  $("f-lcd").addEventListener("input", onCellInput);
+  $("f-lcd").addEventListener("keydown", onKey);
+
+  function allCells() { return ALL.map(function (id) { return $("f-" + id); }); }
+  function onCellInput(e) {
+    var el = e.target, v = el.value.replace(/\D/g, "").slice(0, 5);
+    if (v !== el.value) el.value = v;
+    el.classList.remove("bad", "warn");
+  }
+  function num(id) { var v = $("f-" + id).value.trim(); return v === "" ? null : parseInt(v, 10); }
+  function lock(id) { var el = $("f-" + id); el.readOnly = true; el.tabIndex = -1; el.classList.remove("bad", "warn"); if (!el.classList.contains("given") && el.value !== "") el.classList.add("ok"); }
+  function giveVal(id, v) { var el = $("f-" + id); el.value = v; el.readOnly = true; el.tabIndex = -1; el.classList.remove("ok", "bad", "warn"); el.classList.add("given"); }
+  function mark(id, cls) { var el = $("f-" + id); if (el.readOnly) return; el.classList.remove("ok", "bad", "warn"); if (cls && el.value) el.classList.add(cls); }
+  function show(id) { var el = $(id); if (el.hidden) { el.hidden = false; el.classList.add("appear"); } }
+  function setD(v) { D = v; C = calc(task, v); document.querySelectorAll(".mirror").forEach(function (m) { m.textContent = v; }); $("pb-n2").textContent = C.n2; }
+  function validD(v) { return v !== null && v > 0 && v % task.b === 0 && v % task.d === 0 && v <= 99999; }
+
+  /* ---------- flow ---------- */
+  function newTask(t, focus) {
+    task = { W1: t.W1 || 0, a: t.a, b: t.b, W2: t.W2 || 0, c: t.c, d: t.d, op: t.op, custom: !!t.custom, L: lcm(t.b, t.d) };
+    taskCount++;
+    D = null; C = null; log = []; msg = null;
+    attempt = { hints: 0, mistakes: 0, shown: false, done: false };
+    stepState = ["pending", "pending", "pending", "pending", "pending", "pending", "pending"];
+    build();
+    $("taskNo").textContent = "Приклад " + taskCount;
+    $("taskSrc").textContent = (task.custom ? "Свій приклад · " : "") + "розв'язуй крок за кроком";
+    $("stamp").hidden = true;
+    if (task.b === task.d) go("q-same", focus);
+    else if (settings.mode === "given") {
+      setD(task.L); show("lcdRow"); giveVal("lcd", task.L);
+      show("c-k1"); show("c-k2"); giveVal("k1", C.k1); giveVal("k2", C.k2);
+      stepState[0] = stepState[1] = "given";
+      go("nums", focus);
+    } else go("lcd", focus);
+  }
+
+  function go(st, focus) {
+    stage = st;
+    if (st === "lcd") show("lcdRow");
+    if (st === "mult") { show("c-k1"); show("c-k2"); }
+    if (st === "nums") show("p3");
+    if (st === "borrow") show("pB");
+    if (st === "sum") show("p4");
+    if (st === "mid") show("p5");
+    if (st === "fin") { show("p6"); $("f-w").hidden = !(C.W > 0); }
+    refresh();
+    if (focus !== false) focusStage();
+  }
+  function afterNums() {
+    if (C.mixed && task.op === "-") return go("q-borrow");
+    stepState[3] = "skip";
+    go("sum");
+  }
+  function afterSum() {
+    if (C.s === 0) { stepState[5] = stepState[6] = "skip"; return finish(); }
+    go("q-whole");
+  }
+  function focusStage() {
+    if (question()) { $("ask").querySelector("button").focus(); return; }
+    var ids = STAGE_CELLS[stage] || [];
+    var el = ids.map(function (id) { return $("f-" + id); }).filter(function (e) { return !e.readOnly && !e.hidden && (e.classList.contains("bad") || !e.value); })[0];
+    if (el) el.focus();
+  }
+  function refresh() { renderAsk(); renderFeedback(); paintSteps(); setButtons(); }
+
+  function addLog(step, text, skip) { log.push({ step: step, text: text, skip: !!skip }); msg = null; }
+  function fail(idx, text) { attempt.mistakes++; stepState[idx] = "bad"; msg = { cls: "bad", text: text }; }
+
+  /* ---------- questions ---------- */
+  function question() {
+    var T = task;
+    if (stage === "q-same") return { text: "Знаменники однакові (" + T.b + "). Чи потрібно шукати спільний знаменник?", correct: "no" };
+    if (stage === "q-k") {
+      var first = D === T.b;
+      return { text: "Знаменник дробу " + (first ? T.a + "/" + T.b : T.c + "/" + T.d) + " уже дорівнює " + D + ". Чи потрібно цей дріб домножувати?", correct: "no", which: first ? "k1" : "k2", den: first ? T.b : T.d };
+    }
+    if (stage === "q-borrow") return { text: "Від " + C.n1 + "/" + D + " треба відняти " + C.n2 + "/" + D + ". Чи потрібно позичати 1 з цілої частини?", correct: C.borrow ? "yes" : "no" };
+    if (stage === "q-whole") return { text: "Чи можна виділити цілу частину з дробу " + C.s + "/" + D + "?", correct: C.s >= D ? "yes" : "no" };
+    if (stage === "q-reduce") return { text: "Чи можна скоротити дріб " + C.r + "/" + D + "?", correct: C.g > 1 ? "yes" : "no" };
+    return null;
+  }
+  function commonDiv(a, b) { for (var p = 2; p <= Math.min(a, b); p++) if (a % p === 0 && b % p === 0) return p; return 1; }
+
+  function answer(ans) {
+    var q = question(), T = task;
+    if (!q || attempt.done || attempt.shown) return;
+    if (ans !== q.correct) {
+      var t;
+      if (stage === "q-same") t = "Ні, знаменники вже однакові, тож спільний знаменник шукати не треба.";
+      else if (stage === "q-k") t = "Подумай: " + D + " : " + q.den + " = 1. Від множення на 1 дріб не змінюється.";
+      else if (stage === "q-borrow") t = C.borrow ? C.n1 + " < " + C.n2 + ", тож від " + C.n1 + "/" + D + " не можна відняти " + C.n2 + "/" + D + ". Треба позичити 1 з цілої частини." : C.n1 + " ≥ " + C.n2 + ", тож дробові частини можна відняти і без позичання.";
+      else if (stage === "q-whole") t = C.s >= D ? "Подивись уважніше: чисельник " + C.s + " не менший за знаменник " + D + ", тобто дріб неправильний." : "Чисельник " + C.s + " менший за знаменник " + D + ", тож дріб правильний і цілої частини в ньому немає.";
+      else t = C.g > 1 ? "Пошукай спільний дільник: " + C.r + " і " + D + " обидва діляться на " + commonDiv(C.r, D) + "." : "Числа " + C.r + " і " + D + " не мають спільного дільника, більшого за 1.";
+      attempt.mistakes++;
+      msg = { cls: "bad", text: t };
+      refresh();
+      return;
+    }
+    if (stage === "q-same") {
+      stepState[0] = stepState[1] = stepState[2] = "skip";
+      setD(T.b); show("lcdRow"); giveVal("lcd", D);
+      show("p3"); giveVal("n1", T.a); giveVal("n2", T.c);
+      addLog(0, praise() + " Знаменники однакові, тож одразу дієш з чисельниками, а знаменник " + D + " залишається.");
+      afterNums();
+    } else if (stage === "q-k") {
+      show("c-k1"); show("c-k2"); giveVal(q.which, 1);
+      msg = { cls: "note", text: praise() + " Дріб уже має знаменник " + D + ", його множник 1. Знайди множник для другого дробу." };
+      go("mult");
+    } else if (stage === "q-borrow") {
+      if (ans === "yes") { msg = { cls: "note", text: "Так. Візьми 1 з цілої частини " + T.W1 + " і запиши її як " + D + "/" + D + ", додавши до чисельника." }; go("borrow"); }
+      else { stepState[3] = "skip"; addLog(3, praise() + " " + C.n1 + " ≥ " + C.n2 + ", позичати не треба.", true); go("sum"); }
+    } else if (stage === "q-whole") {
+      if (ans === "yes") { msg = { cls: "note", text: "Так, чисельник не менший за знаменник. Поділи " + C.s + " на " + D + " з остачею." }; go("mid"); }
+      else { stepState[5] = "skip"; addLog(5, praise() + " " + C.s + " < " + D + ", дріб правильний, цілої частини виділяти не треба.", true); go("q-reduce"); }
+    } else if (stage === "q-reduce") {
+      if (ans === "yes") { msg = { cls: "note", text: "Так. Знайди число, на яке діляться і " + C.r + ", і " + D + ", і поділи на нього." }; go("fin"); }
+      else { stepState[6] = "skip"; addLog(6, praise() + " Дріб " + C.r + "/" + D + " не скорочується.", true); finish(); }
+    }
+  }
+  $("ask").addEventListener("click", function (e) { var b = e.target.closest("button[data-ans]"); if (b) answer(b.dataset.ans); });
+
+  /* ---------- checking ---------- */
+  // list items: [id, expected, error text, emptyMeansZero]
+  function checkCells(list, idx, onOk) {
+    var errs = [], empty = 0;
+    list.forEach(function (it) {
+      var el = $("f-" + it[0]); if (el.readOnly || el.hidden) return;
+      var v = num(it[0]);
+      if (v === null && it[3]) v = 0; else if (v === null) { empty++; return; }
+      if (v === it[1]) lock(it[0]); else { mark(it[0], "bad"); errs.push(it[2]); }
+    });
+    if (errs.length) fail(idx, errs.join(" "));
+    else if (empty) msg = { cls: "note", text: "Заповни всі клітинки цього кроку." };
+    else { stepState[idx] = "ok"; onOk(); return true; }
+    return false;
+  }
+
+  function checkStage() {
+    if (attempt.done || attempt.shown || question()) return;
+    var T = task, o = opSym(T.op);
+    if (stage === "lcd") {
+      var v = num("lcd");
+      if (v === null) msg = { cls: "note", text: "Впиши спільний знаменник." };
+      else if (validD(v)) {
+        setD(v); lock("lcd"); stepState[0] = "ok";
+        addLog(0, praise() + " " + v + " ділиться і на " + T.b + ", і на " + T.d + "." + (v !== T.L ? " Підійде, хоча можна було взяти менший: " + T.L + "." : ""));
+        return go(D === T.b || D === T.d ? "q-k" : "mult");
+      } else {
+        mark("lcd", "bad");
+        fail(0, v === 0 ? "Знаменник не може дорівнювати нулю." : v % T.b ? v + " не ділиться на " + T.b + ", тож це не спільний знаменник." : v % T.d ? v + " не ділиться на " + T.d + ", тож це не спільний знаменник." : "Це число завелике, візьми менше.");
+      }
+    } else if (stage === "mult") {
+      if (checkCells([["k1", C.k1, "Множник першого дробу: " + D + " поділи на " + T.b + "."], ["k2", C.k2, "Множник другого дробу: " + D + " поділи на " + T.d + "."]], 1, function () {
+        addLog(1, praise() + " " + D + " : " + T.b + " = " + C.k1 + ", " + D + " : " + T.d + " = " + C.k2 + ".");
+      })) return go("nums");
+    } else if (stage === "nums") {
+      if (checkCells([["n1", C.n1, "Перший чисельник: " + T.a + " помнож на його множник " + C.k1 + "."], ["n2", C.n2, "Другий чисельник: " + T.c + " помнож на його множник " + C.k2 + "."]], 2, function () {
+        addLog(2, praise() + " " + T.a + " · " + C.k1 + " = " + C.n1 + ", " + T.c + " · " + C.k2 + " = " + C.n2 + "." + (C.mixed ? " Цілі частини переписуємо без змін." : ""));
+      })) return afterNums();
+    } else if (stage === "borrow") {
+      if (checkCells([["bw", C.B1, "Ціла частина зменшилась на 1: " + T.W1 + " − 1.", true], ["bm", C.m1, "Позичена 1 — це " + D + "/" + D + ". Додай " + D + " до чисельника " + C.n1 + "."]], 3, function () {
+        addLog(3, praise() + " Позичили 1 = " + D + "/" + D + ": " + mx(T.W1, C.n1, D) + " = " + mx(C.B1, C.m1, D) + ".");
+      })) return go("sum");
+    } else if (stage === "sum") {
+      var list = [["s", C.s, (T.op === "+" ? "Додай" : "Відніми") + " чисельники: " + C.m1 + " " + o + " " + C.n2 + ". Знаменник не змінюється.", C.s === 0 && C.mixed]];
+      if (C.mixed) list.unshift(["sw", C.Wres, "Цілі частини: " + C.B1 + " " + o + " " + T.W2 + ".", true]);
+      if (C.mixed && num("sw") === null && num("s") === null) msg = { cls: "note", text: "Впиши цілу частину і чисельник." };
+      else if (checkCells(list, 4, function () {
+        addLog(4, praise() + (C.mixed ? " Цілі: " + C.B1 + " " + o + " " + T.W2 + " = " + C.Wres + ". Чисельники: " + C.m1 + " " + o + " " + C.n2 + " = " + C.s + "." : " " + C.n1 + " " + o + " " + C.n2 + " = " + C.s + ", знаменник " + D + "."));
+      })) return afterSum();
+    } else if (stage === "mid") {
+      var W1 = num("w1"), R1 = num("r1");
+      if (W1 === null && R1 === null) msg = { cls: "note", text: "Впиши цілу частину і чисельник." };
+      else {
+        var val = (W1 || 0) * D + (R1 || 0);
+        if (val !== C.tot) { mark("w1", "bad"); mark("r1", "bad"); fail(5, "Поділи " + C.s + " на " + D + " з остачею: остача — чисельник, а частку " + (C.Wres ? "додай до цілої частини " + C.Wres : "запиши в цілу частину") + "."); }
+        else if ((R1 || 0) >= D) { mark("w1", "warn"); mark("r1", "warn"); stepState[5] = "warn"; msg = { cls: "warn", text: "Дріб " + R1 + "/" + D + " ще неправильний. Виділи цілу частину повністю." }; }
+        else {
+          lock("w1"); lock("r1"); stepState[5] = "ok";
+          var q1 = Math.floor(C.s / D);
+          addLog(5, praise() + " " + C.s + " : " + D + " = " + q1 + " (остача " + C.r + ")" + (C.Wres ? ", " + C.Wres + " + " + q1 + " = " + C.W : "") + ", тож отримали " + mixed(C.W, C.r, D) + ".");
+          if (C.r === 0) { stepState[6] = "skip"; return finish(); }
+          return go("q-reduce");
+        }
+      }
+    } else if (stage === "fin") {
+      var Wn = C.W > 0 ? num("w") : 0, P = num("p"), Q = num("q");
+      if (P === null || Q === null || (C.W > 0 && Wn === null)) msg = { cls: "note", text: C.W > 0 ? "Заповни цілу частину, чисельник і знаменник." : "Заповни чисельник і знаменник." };
+      else if (Q === 0) { mark("q", "bad"); fail(6, "Знаменник не може дорівнювати нулю."); }
+      else if ((Wn * Q + P) * D !== C.tot * Q) { ["w", "p", "q"].forEach(function (k) { mark(k, "bad"); }); fail(6, "Чисельник і знаменник треба поділити на одне й те саме число" + (C.W > 0 ? ", а цілу частину " + C.W + " переписати без змін" : "") + "."); }
+      else if (P >= Q) { mark("p", "warn"); mark("q", "warn"); stepState[6] = "warn"; msg = { cls: "warn", text: "Дріб " + P + "/" + Q + " неправильний. Так не повинно бути після виділення цілої частини." }; }
+      else if (gcd(P, Q) > 1) { mark("p", "warn"); mark("q", "warn"); stepState[6] = "warn"; msg = { cls: "warn", text: "Добре, але дріб " + P + "/" + Q + " можна скоротити ще." }; }
+      else {
+        ["w", "p", "q"].forEach(lock); stepState[6] = "ok";
+        addLog(6, praise() + " " + C.r + "/" + D + " = " + P + "/" + Q + " (поділили на " + (D / Q) + ").");
+        return finish();
+      }
+    }
+    refresh();
+    var bad = document.querySelector(".cell.bad, .cell.warn");
+    if (bad) bad.focus(); else focusStage();
+  }
+
+  function finish() {
+    attempt.done = true; stage = "done";
+    var grade = Math.max(4, 12 - attempt.hints - attempt.mistakes);
+    var clean = attempt.hints === 0 && attempt.mistakes === 0;
+    stats.solved++; if (clean) { stats.first++; stats.streak++; } else stats.streak = 0;
+    history.unshift({ e: exprText(task), a: fmtAns(C), g: grade });
+    history = history.slice(0, 30);
+    save(); paintStats();
+    allCells().forEach(function (el) { el.readOnly = true; });
+    $("stampG").textContent = grade; $("stampW").textContent = balWord(grade);
+    $("stamp").hidden = false;
+    msg = { cls: "good", text: "Відповідь: " + exprText(task) + " = " + fmtAns(C) + (clean ? ". Без жодної помилки!" : ".") };
+    refresh();
+    $("btnNext").focus();
+  }
+
+  function hint() {
+    if (attempt.done || attempt.shown) return;
+    var T = task, h, o = opSym(T.op);
+    attempt.hints++;
+    switch (stage) {
+      case "q-same": h = "Порівняй знаменники двох дробів."; break;
+      case "lcd":
+        var big = Math.max(T.b, T.d), small = Math.min(T.b, T.d), list = [];
+        for (var m = big; m <= Math.max(T.L, big * 4) && list.length < 6; m += big) list.push(m);
+        h = "Потрібне число, яке ділиться і на " + T.b + ", і на " + T.d + ". Випиши числа, кратні " + big + ": " + list.join(", ") + "… Шукай перше, яке ділиться на " + small + "."; break;
+      case "q-k": h = "Обчисли " + D + " : " + question().den + ". Що станеться з дробом, якщо помножити його на це число?"; break;
+      case "mult": h = "Обчисли " + D + " : " + T.b + " і " + D + " : " + T.d + "."; break;
+      case "nums": h = "Обчисли " + T.a + " · " + C.k1 + " і " + T.c + " · " + C.k2 + "." + (C.mixed ? " Цілі частини не змінюються." : ""); break;
+      case "q-borrow": h = "Порівняй чисельники " + C.n1 + " і " + C.n2 + ". Якщо перший менший, дробову частину відняти не вийде."; break;
+      case "borrow": h = "Ціла частина стає " + T.W1 + " − 1. Позичена одиниця — це " + D + "/" + D + ", тож до чисельника " + C.n1 + " додай " + D + "."; break;
+      case "sum": h = C.mixed ? "Окремо цілі частини: " + C.B1 + " " + o + " " + T.W2 + ". Окремо чисельники: " + C.m1 + " " + o + " " + C.n2 + ". Знаменник " + D + "." : "Обчисли " + C.n1 + " " + o + " " + C.n2 + ". Знаменник лишається " + D + "."; break;
+      case "q-whole": h = "Порівняй чисельник " + C.s + " і знаменник " + D + ". Якщо чисельник не менший, дріб неправильний."; break;
+      case "mid": h = "Поділи " + C.s + " на " + D + " з остачею: остача — чисельник, знаменник " + D + " не змінюється." + (C.Wres ? " Частку додай до цілої частини " + C.Wres + "." : " Частка — ціла частина."); break;
+      case "q-reduce": h = "Перевір, чи діляться " + C.r + " і " + D + " на 2, на 3, на 5…"; break;
+      case "fin": h = "Чисельник " + C.r + " і знаменник " + D + " діляться на " + C.g + "." + (C.W > 0 ? " Цілу частину " + C.W + " перепиши без змін." : ""); break;
+      default: return;
+    }
+    msg = { cls: "hint", text: "<b>Підказка.</b> " + h };
+    refresh();
+  }
+
+  function fillOk(id, v) { var el = $("f-" + id); if (el.classList.contains("given")) return; el.value = v; el.readOnly = true; el.classList.remove("bad", "warn"); el.classList.toggle("ok", v !== ""); }
+  function showSolution() {
+    if (attempt.done || attempt.shown) return;
+    var T = task;
+    attempt.shown = true;
+    if (D === null) setD(T.b === T.d ? T.b : T.L);
+    show("lcdRow"); fillOk("lcd", D);
+    if (T.b === T.d) { stepState[0] = stepState[1] = stepState[2] = "skip"; show("p3"); giveVal("n1", T.a); giveVal("n2", T.c); }
+    else { show("c-k1"); show("c-k2"); fillOk("k1", C.k1); fillOk("k2", C.k2); show("p3"); fillOk("n1", C.n1); fillOk("n2", C.n2); }
+    if (C.borrow) { show("pB"); fillOk("bw", C.B1 || ""); fillOk("bm", C.m1); } else stepState[3] = "skip";
+    show("p4"); if (C.mixed) fillOk("sw", C.Wres || ""); fillOk("s", C.s === 0 && C.mixed ? "" : C.s);
+    if (C.s >= D) { show("p5"); fillOk("w1", C.W || ""); fillOk("r1", C.r || ""); } else stepState[5] = "skip";
+    if (C.r > 0 && C.g > 1) { show("p6"); $("f-w").hidden = !(C.W > 0); fillOk("w", C.W || ""); fillOk("p", C.fp); fillOk("q", C.fq); } else stepState[6] = "skip";
+    stepState = stepState.map(function (s) { return s === "skip" || s === "given" ? s : "ok"; });
+    stage = "done"; stats.streak = 0;
+    history.unshift({ e: exprText(T), a: fmtAns(C), g: null });
+    history = history.slice(0, 30);
+    save(); paintStats();
+    log = [];
+    msg = { cls: "note", text: "Ось розв'язок. Розбери кожен крок і спробуй наступний приклад.<br>" + solutionText(T, C) };
+    refresh();
+  }
+
+  function next() {
+    if (settings.source === "custom") { var a = $("cw1"); a.focus(); a.select(); return; }
+    newTask(generate(), true);
+  }
+
+  /* ---------- painting ---------- */
+  function renderAsk() {
+    var q = attempt.done || attempt.shown ? null : question();
+    $("ask").hidden = !q;
+    if (q) $("askText").textContent = q.text;
+  }
+  function renderFeedback() {
+    var html = "";
+    if (log.length) html += '<ol class="log">' + log.map(function (l) { return '<li class="' + (l.skip ? "skip" : "") + '"><span><b>Крок ' + (l.step + 1) + ".</b> " + l.text + "</span></li>"; }).join("") + "</ol>";
+    if (msg) html += '<p class="' + msg.cls + '">' + msg.text + "</p>";
+    $("feedback").innerHTML = html;
+  }
+  function paintSteps() {
+    var lis = document.querySelectorAll("#steps li"), cur = STAGE_STEP[stage];
+    lis.forEach(function (li, i) {
+      li.className = "";
+      if (stepState[i] !== "pending") li.classList.add(stepState[i]);
+      if (cur === i && stepState[i] !== "ok") li.classList.add("current");
+    });
+  }
+  function setButtons() {
+    var done = attempt.done || attempt.shown, q = !!question();
+    $("btnCheck").hidden = done || q;
+    if (!done && !q) $("btnCheck").textContent = "Перевірити крок " + (STAGE_STEP[stage] + 1);
+    $("btnHint").disabled = done; $("btnShow").disabled = done;
+    $("btnNext").className = done ? "btn primary" : "btn quiet";
+    $("btnNext").textContent = settings.source === "custom" ? "Інший свій приклад →" : "Наступний приклад →";
+  }
+
+  /* ---------- stats ---------- */
+  function paintStats() {
+    $("sSolved").textContent = stats.solved; $("sFirst").textContent = stats.first; $("sStreak").textContent = stats.streak;
+    $("hist").innerHTML = history.map(function (h) {
+      return "<li><span>" + h.e.replace(" - ", " " + MINUS + " ") + " = " + h.a + "</span>" + (h.g === null ? '<span class="hg none">розв\'язок показано</span>' : '<span class="hg">' + h.g + "</span>") + "</li>";
+    }).join("");
+    $("histEmpty").hidden = history.length > 0;
+  }
+  var resetTimer = null;
+  $("btnReset").addEventListener("click", function () {
+    var b = this;
+    if (!b.classList.contains("armed")) {
+      b.classList.add("armed"); b.textContent = "Натисни ще раз, щоб очистити";
+      resetTimer = setTimeout(function () { b.classList.remove("armed"); b.textContent = "Очистити рахунок"; }, 3500);
+      return;
+    }
+    clearTimeout(resetTimer);
+    stats = { solved: 0, first: 0, streak: 0 }; history = [];
+    save(); paintStats();
+    b.classList.remove("armed"); b.textContent = "Рахунок очищено";
+    setTimeout(function () { b.textContent = "Очистити рахунок"; }, 2000);
+  });
+
+  /* ---------- controls ---------- */
+  function paintSettings() {
+    document.querySelectorAll(".seg").forEach(function (seg) {
+      var g = seg.dataset.group;
+      seg.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(settings[g] === b.dataset.val)); });
+    });
+    $("level").value = settings.level;
+    $("kind").value = settings.kind;
+    var custom = settings.source === "custom";
+    $("customForm").hidden = !custom;
+    $("g-op").classList.toggle("off", custom || settings.kind === "borrow");
+    $("g-level").classList.toggle("off", custom);
+    $("g-kind").classList.toggle("off", custom);
+  }
+  document.querySelectorAll(".seg").forEach(function (seg) {
+    seg.addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      var g = seg.dataset.group, val = b.dataset.val;
+      if (settings[g] === val) return;
+      settings[g] = val; save(); paintSettings();
+      if (g === "source") {
+        if (val === "custom") { fillCustom(task); $("cw1").focus(); setButtons(); }
+        else newTask(generate(), false);
+      } else if (g === "op") newTask(generate(), false);
+      else if (g === "mode") { taskCount--; newTask(task, false); }
+    });
+  });
+  $("level").addEventListener("change", function () { settings.level = this.value; save(); newTask(generate(), false); });
+  $("kind").addEventListener("change", function () { settings.kind = this.value; save(); paintSettings(); newTask(generate(), false); });
+
+  function fillCustom(t) { $("cw1").value = t.W1 || ""; $("ca").value = t.a; $("cb").value = t.b; $("cop").value = t.op; $("cw2").value = t.W2 || ""; $("cc").value = t.c; $("cd").value = t.d; $("cerr").textContent = ""; }
+  ["cw1", "ca", "cb", "cw2", "cc", "cd"].forEach(function (id) { $(id).addEventListener("input", function () { var v = this.value.replace(/\D/g, "").slice(0, 3); if (v !== this.value) this.value = v; }); });
+  $("customForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var W1 = parseInt($("cw1").value, 10) || 0, W2 = parseInt($("cw2").value, 10) || 0;
+    var a = parseInt($("ca").value, 10), b = parseInt($("cb").value, 10), c = parseInt($("cc").value, 10), d = parseInt($("cd").value, 10), op = $("cop").value;
+    var err = "";
+    if ([a, b, c, d].some(isNaN)) err = "Заповни чисельники і знаменники обох чисел. Цілу частину можна не писати.";
+    else if (b < 1 || d < 1) err = "Знаменник має бути більшим за нуль.";
+    else if (a < 1 || c < 1) err = "Чисельник має бути більшим за нуль.";
+    else if ((W1 && a >= b) || (W2 && c >= d)) err = "У мішаному числі дробова частина має бути правильним дробом: чисельник менший за знаменник.";
+    else if (lcm(b, d) > 9999) err = "Знаменники завеликі для тренажера. Візьми менші числа.";
+    else if (op === "-" && (W1 * b + a) * d < (W2 * d + c) * b) err = "Перше число менше за друге, а від'ємні числа тут не розглядаємо. Поміняй числа місцями.";
+    $("cerr").textContent = err;
+    if (err) return;
+    newTask({ W1: W1, a: a, b: b, W2: W2, c: c, d: d, op: op, custom: true }, true);
+  });
+
+  $("btnCheck").addEventListener("click", checkStage);
+  $("btnHint").addEventListener("click", hint);
+  $("btnShow").addEventListener("click", showSolution);
+  $("btnNext").addEventListener("click", next);
+
+  paintSettings(); paintStats();
+  newTask(generate(), false);
+  if (settings.source === "custom") fillCustom(task);
+})();
+</script>
+
+</body>
+</html>
